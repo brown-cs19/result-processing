@@ -34,7 +34,7 @@ interface Result {
 
 interface Evaluation {
     code: PathName;
-    tests: PathName;
+    tests: String;
     result: Result;
 }
 
@@ -177,9 +177,14 @@ function write_report_to_file(path: PathName, report: GradescopeReport) {
     Inputs: The `path_name` of the file
     Outputs: The name of the file
 */
-function get_file_name(path_name: PathName): string {
+function get_code_file_name(evaluation: Evaluation): string {
     let path = require('path');
-    return path.parse(path_name).base;
+    return path.parse(evaluation.code).base;
+}
+
+function get_test_file_name(evaluation: Evaluation): string {
+    let path = require('path');
+    return path.parse(evaluation.tests.split(";")[1]).dir;
 }
 
 /*
@@ -212,7 +217,7 @@ function generate_functionality_report(test_result: Evaluation): GradescopeTestR
     // If errors, 0 functionality and provide error reason
     if (result.Err) {
         return [{
-                name: get_file_name(test_result.code),
+                name: get_code_file_name(test_result),
                 score: 0,
                 max_score: 1,
                 output: `Error: ${result.Err}`,
@@ -334,7 +339,7 @@ function generate_wheat_report(wheat_result: Evaluation): GradescopeTestReport {
     }
 
     return {
-            name: get_file_name(wheat_result.code),
+            name: get_code_file_name(wheat_result),
             score: (invalid === null) ? 1 : 0,
             max_score: 1,
             output: output,
@@ -387,7 +392,7 @@ function generate_chaff_report(wheat_results: Evaluation[]) {
         if (chaff_result.result.Err) {
             // Test file errors
             return {
-                    name: get_file_name(chaff_result.code),
+                    name: get_code_file_name(chaff_result),
                     score: 1,
                     max_score: 1,
                     output: `Chaff caught; error: ${chaff_result.result.Err}!`,
@@ -400,7 +405,7 @@ function generate_chaff_report(wheat_results: Evaluation[]) {
                 if (block.error && !all_invalid_blocks.has(get_loc_name(block.loc))) {
                     // Block errors
                     return {
-                            name: get_file_name(chaff_result.code),
+                            name: get_code_file_name(chaff_result),
                             score: 1,
                             max_score: 1,
                             output: `Chaff caught; error in block ${block.name}!`,
@@ -413,7 +418,7 @@ function generate_chaff_report(wheat_results: Evaluation[]) {
                     // Test fails
                     if (!test.passed && !all_invalid_tests.has(get_loc_name(test.loc))) {
                         return {
-                                name: get_file_name(chaff_result.code),
+                                name: get_code_file_name(chaff_result),
                                 score: 1,
                                 max_score: 1,
                                 output: `Chaff caught; test failed in block ${block.name}!`,
@@ -425,7 +430,7 @@ function generate_chaff_report(wheat_results: Evaluation[]) {
 
             // If this is reached, the chaff is not caught
             return {
-                    name: get_file_name(chaff_result.code),
+                    name: get_code_file_name(chaff_result),
                     score: 0,
                     max_score: 1,
                     output: `Chaff not caught.`,

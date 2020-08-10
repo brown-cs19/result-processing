@@ -34,7 +34,7 @@ interface Result {
 
 interface Evaluation {
     code: PathName;
-    tests: String;
+    tests: string;
     result: Result;
 }
 
@@ -254,7 +254,7 @@ function get_invalid_tests_and_blocks(wheat: Evaluation): [[Test, TestBlock][], 
     Outputs: A report for the wheat
 */
 function generate_wheat_report(wheat_results: Evaluation[]): GradescopeTestReport {
-    let wheat_messages: String[] = [].concat(...wheat_results.map(generate_wheat_messages));
+    let wheat_messages: string[] = [].concat(...wheat_results.map(generate_wheat_messages));
 
     if (wheat_messages === []) {
         return {
@@ -270,7 +270,7 @@ function generate_wheat_report(wheat_results: Evaluation[]): GradescopeTestRepor
     }
 }
 
-function generate_wheat_messages(wheat_result: Evaluation): String[] {
+function generate_wheat_messages(wheat_result: Evaluation): string[] {
     // Find the invalid tests/blocks
     let invalid: [[Test, TestBlock][], TestBlock[]] | null = 
         get_invalid_tests_and_blocks(wheat_result);
@@ -283,7 +283,7 @@ function generate_wheat_messages(wheat_result: Evaluation): String[] {
         // Test file errored
         return [`Wheat errored; ${wheat_result.result.Err}`];
     } else {
-        let messages: String[] = [];
+        let messages: string[] = [];
 
         let [invalid_tests, invalid_blocks] = invalid;
 
@@ -314,7 +314,7 @@ function generate_wheat_messages(wheat_result: Evaluation): String[] {
     Inputs: The `chaff_results` to report
     Outputs: The report for the chaff
 */
-function generate_chaff_report(chaff_result: Evaluation, chaff_number: Number): GradescopeTestReport {
+function generate_chaff_report(chaff_result: Evaluation, chaff_number: number): GradescopeTestReport {
     // Find the invalid tests/blocks
     let invalid: [[Test, TestBlock][], TestBlock[]] | null = 
         get_invalid_tests_and_blocks(chaff_result);
@@ -333,7 +333,7 @@ function generate_chaff_report(chaff_result: Evaluation, chaff_number: Number): 
                         "Note that this means you are not testing defensively."
             };
     } else {
-        let messages: String[] = [];
+        let messages: string[] = [];
 
         let [invalid_tests, invalid_blocks] = invalid;
 

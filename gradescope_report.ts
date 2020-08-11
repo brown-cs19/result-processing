@@ -255,8 +255,8 @@ function get_invalid_tests_and_blocks(wheat: Evaluation): [[Test, TestBlock][], 
 */
 function generate_wheat_report(wheat_results: Evaluation[]): GradescopeTestReport {
     let wheat_messages: string[] = [].concat(...wheat_results.map(generate_wheat_messages));
-    console.log(wheat_results.map(generate_wheat_messages));
-    if (wheat_messages === []) {
+
+    if (wheat_messages.length === 0) {
         return {
                 "name": `VALID`,
                 "output": "These tests are valid and consistent with the assignment handout."

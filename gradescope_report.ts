@@ -262,7 +262,6 @@ function generate_wheat_report(wheat_results: Evaluation[]): GradescopeTestRepor
                 "output": "These tests are valid and consistent with the assignment handout."
             }
     } else {
-        console.log(`Wheat failed. Messages: ${wheat_messages.length}`);
         return {
                 "name": `INVALID`,
                 "output": "Your test suite failed at least one of our wheats.\n" + 

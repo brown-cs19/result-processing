@@ -187,6 +187,10 @@ function get_test_file_name(evaluation: Evaluation): string {
     return path.parse(evaluation.tests.split(";")[1]).dir;
 }
 
+function get_line_number(test_loc: string): string {
+    return test_loc.split(".arr:")[1];
+}
+
 /*
     Gets the pure location of a test or test block from a full location name
     E.g.: "file:///autograder/results/docdiff-wheat-2017.arr;docdiff-tests.arr/tests.arr:8:0-19:3"
@@ -289,13 +293,13 @@ function generate_wheat_messages(wheat_result: Evaluation): string[] {
 
         let block: TestBlock;
         for (block of invalid_blocks) {
-            messages.push(`Block "${block.name}" at location ${block.loc} raised an error.`);
+            messages.push(`Block "${block.name}" at lines ${get_line_number(block.loc)} raised an error.`);
         }
 
         let test: Test;
         for ([test, block] of invalid_tests) {
-            messages.push(`Test failed in block "${block.name}" at location ${block.loc};\n` +
-                          `Test location: ${test.loc}`);
+            messages.push(`Test failed in block "${block.name}" at lines ${get_line_number(block.loc)};\n` +
+                          `Test location: ${get_line_number(test.loc)}`);
         }
 
         if (messages == []) {
@@ -339,12 +343,12 @@ function generate_chaff_report(chaff_result: Evaluation, chaff_number: number): 
 
         let block: TestBlock;
         for (block of invalid_blocks) {
-            messages.push(`Block "${block.name}" at location ${block.loc} raised an error.`);
+            messages.push(`Block "${block.name}" at lines ${get_line_number(block.loc)} raised an error.`);
         }
 
         let test: Test;
         for ([test, block] of invalid_tests) {
-            messages.push(`Test block: ${block.name}; Test location: ${test.loc}`);
+            messages.push(`Test block: ${block.name}; Test lines: ${get_line_number(test.loc)}`);
         }
 
         if (messages == []) {

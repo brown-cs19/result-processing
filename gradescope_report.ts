@@ -373,8 +373,8 @@ function generate_overall_report(
             visibility: "visible",
             stdout_visibility: "visible",
             tests: all_reports,
-            score: 1,
-            max_score: 1,
+            score: 0,
+            max_score: 0,
         };
 }
 

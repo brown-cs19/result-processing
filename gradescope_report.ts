@@ -49,14 +49,14 @@ interface GradescopeReport {
     visibility: string;
     stdout_visibility: string;
     tests: GradescopeTestReport[];
+    score: number;
+    max_score: number;
 }
 
 interface GradescopeTestReport {
     name: string;
-    score?: number;
-    max_score?: number;
     output?: string;
-    visibility?: string;
+    // visibility?: string;
 }
 
 
@@ -373,6 +373,8 @@ function generate_overall_report(
             visibility: "visible",
             stdout_visibility: "visible",
             tests: all_reports,
+            score: 1,
+            max_score: 1,
         };
 }
 

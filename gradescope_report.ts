@@ -260,6 +260,9 @@ function get_invalid_tests_and_blocks(wheat: Evaluation): [[Test, TestBlock][], 
 function generate_wheat_report(wheat_results: Evaluation[]): GradescopeTestReport {
     let wheat_messages: string[] = [].concat(...wheat_results.map(generate_wheat_messages));
 
+    // Remove duplicates
+    wheat_messages = [...new Set(wheat_messages)];
+
     if (wheat_messages.length === 0) {
         return {
                 "name": `VALID`,
@@ -298,7 +301,7 @@ function generate_wheat_messages(wheat_result: Evaluation): string[] {
 
         let test: Test;
         for ([test, block] of invalid_tests) {
-            messages.push(`Test failed in block "${block.name}" at lines ${get_line_number(block.loc)};\n` +
+            messages.push(`Test failed in block "${block.name}" at lines ${get_line_number(block.loc)}; ` +
                           `Test location: ${get_line_number(test.loc)}`);
         }
 

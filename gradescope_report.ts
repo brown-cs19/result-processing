@@ -352,8 +352,8 @@ function generate_chaff_report(chaff_result: Evaluation, chaff_number: number): 
         }
 
         return {
-                name: `Chaff cnumber ${chaff_number} caught!`,
-                output: "The following tests caught this chaff:" +
+                name: `Chaff number ${chaff_number} caught!`,
+                output: "The following tests caught this chaff:\n" +
                         messages.join("\n")
             };
     }

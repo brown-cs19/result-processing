@@ -56,7 +56,8 @@ interface GradescopeReport {
 interface GradescopeTestReport {
     name: string;
     output?: string;
-    // visibility?: string;
+    visibility?: string;
+    score?: number;
 }
 
 
@@ -366,6 +367,67 @@ function generate_chaff_report(chaff_result: Evaluation, chaff_number: number): 
     }
 }
 
+// Generate TA reports
+
+/*
+    Generates a functionality report(s); 
+    If test file errors, returns a single report with 0/1 and error;
+    Otherwise, return report for each block, each out of 1
+
+    Inputs: The `test_result` of a single test suite
+    Outputs: A list of reports for each block
+*/
+function generate_functionality_report(test_result: Evaluation): GradescopeTestReport[] {
+    let result: Result = test_result.result;
+
+    // If errors, 0 functionality and provide error reason
+    if (result.Err) {
+        return [{
+                name: get_code_file_name(test_result),
+                score: 0,
+                max_score: 1,
+                output: `Error: ${result.Err}`,
+                visibility: "visible"
+            }];
+    }
+
+
+    // If no error, report what blocks passed/failed
+    let reports: GradescopeTestReport[] = [];
+
+    let block: TestBlock;
+    for (block of result.Ok) {
+        let report: GradescopeTestReport;
+        if (block.error) {
+            // If the block errors, then failed block
+            report = {
+                    name: block.name,
+                    score: 0,
+                    max_score: 1,
+                    output: "Block errored.",
+                    visibility: "after_published"
+                };
+        } else {
+            // Otherwise, compare number of passed tests to total number of tests
+            let total_tests: number = block.tests.length;
+            let passed_tests: number = block.tests.filter(test => test.passed).length;
+            report = {
+                    name: block.name,
+                    score: passed_tests === total_tests ? 1 : 0,
+                    max_score: 1,
+                    output: passed_tests === total_tests 
+                        ? `Passed all ${total_tests} tests in this block!`
+                        : `Missing ${total_tests - passed_tests} tests in this block`,
+                    visibility: "after_published"
+                };
+        }
+
+        // Add block to report
+        reports.push(report);
+    }
+
+    return reports;
+}
 
 // Generate overall report
 
@@ -428,10 +490,19 @@ function main() {
         [wheat_report,],
         chaff_reports,);
 
+    // Generate TA reports
+    let ta_reports: GradescopeTestReport[] = [].concat(
+        ...test_results.map(generate_functionality_report));
+
+    // All reports
+    let all_reports: GradescopeTestReport[] = [].concat(
+        student_reports,
+        ta_reports);
+
 
     // Generate overall report
 
-    let gradescope_report: GradescopeReport = generate_overall_report(student_reports);
+    let gradescope_report: GradescopeReport = generate_overall_report(all_reports);
 
 
     /*

@@ -58,6 +58,7 @@ interface GradescopeTestReport {
     output?: string;
     visibility?: string;
     score?: number;
+    max_score?: number;
 }
 
 

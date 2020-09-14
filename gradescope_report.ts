@@ -430,6 +430,183 @@ function generate_functionality_report(test_result: Evaluation): GradescopeTestR
     return reports;
 }
 
+/*
+    Takes a wheat evaluation, and finds all of the invalid tests and blocks;
+    If the wheat passes, returns null;
+    Otherwise, returns the pure locations of all invalid tests/blocks and 
+                       the name of the block it contains/itself
+
+    Inputs: The `wheat` evaluation
+    Outputs: null if valid wheat, otherwise the invalid tests/blocks as:
+             [list of (test location, block name), list of (block location, block name)]
+*/
+function get_invalid_tests_and_blocks_ta(wheat: Evaluation): [[string, string][], [string, string][]] | null {
+    if (wheat.result.Err) {
+        return [[],[]];
+    }
+
+    let invalid_tests: [string, string][] = [];
+    let invalid_blocks: [string, string][] = [];
+
+    let block: TestBlock;
+    for (block of wheat.result.Ok) {
+        // If the block errors, add to invalid_blocks
+        if (block.error) {
+            invalid_blocks.push([get_loc_name(block.loc), block.name]);
+        }
+
+        let test: Test;
+        for (test of block.tests) {
+            // If a test fails, add to invalid_tests
+            if (!test.passed) {
+                invalid_tests.push([get_loc_name(test.loc), block.name]);
+            }
+        }
+    }
+
+    if ((invalid_tests.length === 0) && (invalid_blocks.length === 0)) {
+        // This means the wheat is valid
+        return null;
+    } else {
+        return [invalid_tests, invalid_blocks];
+    }
+}
+
+/*
+    Generates a wheat testing report; 
+    If the wheat is invalid, generates report with reason;
+    Otherwise, generates report with positive message
+
+    Inputs: The `wheat_result` evaluation
+    Outputs: A report for the wheat
+*/
+function generate_wheat_report_ta(wheat_result: Evaluation): GradescopeTestReport {
+    // Find the invalid tests/blocks
+    let invalid: [[string, string][], [string, string][]] | null = 
+        get_invalid_tests_and_blocks_ta(wheat_result);
+
+    let output: string;
+    if (invalid === null) {
+        // Valid wheat
+        output = "Passed wheat!";
+    } else if (wheat_result.result.Err) {
+        // Test file errored
+        output = `Wheat errored; ${wheat_result.result.Err}`;
+    } else {
+        let [invalid_tests, invalid_blocks] = invalid;
+        if (invalid_tests.length > 0) {
+            // Invalid test
+            output = `Wheat failed test in block ${invalid_tests[0][1]}`;
+        } else if (invalid_blocks.length > 0) {
+            // Block errored
+            output = `Wheat caused error in block ${invalid_blocks[0][1]}`;
+        } else {
+            throw "Wheat failed but no reason given.";
+        }
+    }
+
+    return {
+            name: get_code_file_name(wheat_result),
+            score: (invalid === null) ? 1 : 0,
+            max_score: 1,
+            output: output,
+            visibility: "after_published"
+        }
+}
+
+/*
+    A curried function which generates a chaff testing report;
+    It first takes in the list of wheat evaluations, and finds all
+        invalid tests and test blocks between wheats;
+    It then takes in a chaff evaluation, and checks if it is caught
+        by the valid tests/blocks
+
+    Inputs: The `wheat_results` evaluations
+    Outputs: A function which generates a chaff report from an evaluation
+*/
+function generate_chaff_report_ta(wheat_results: Evaluation[]) {
+    let all_invalid_tests: Set<string> = new Set(),
+        all_invalid_blocks: Set<string> = new Set();
+
+    // Go through wheats and find invalid tests/blocks
+    let wheat_result: Evaluation;
+    for (wheat_result of wheat_results) {
+        let invalid: [[string, string][], [string, string][]] | null =
+            get_invalid_tests_and_blocks_ta(wheat_result);
+
+        if (invalid !== null) {
+            let invalid_test: [string, string];
+            for (invalid_test of invalid[0]) {
+                all_invalid_tests.add(invalid_test[0]);
+            }
+
+            let invalid_block: [string, string];
+            for (invalid_block of invalid[1]) {
+                all_invalid_blocks.add(invalid_block[0]);
+            }
+        }
+    }
+
+    /*
+        Generates a chaff testing report; ignores invalid tests/blocks;
+        If the chaff is invalid, generates report with reason;
+        Otherwise, generates report with negative message
+
+        Inputs: The `chaff_results` to report
+        Outputs: The report for the chaff
+    */
+    return function (chaff_result: Evaluation): GradescopeTestReport {
+        if (chaff_result.result.Err) {
+            // Test file errors
+            return {
+                    name: get_code_file_name(chaff_result),
+                    score: 1,
+                    max_score: 1,
+                    output: `Chaff caught; error: ${chaff_result.result.Err}!`,
+                    visibility: "after_published"
+                };
+        } else {
+            // Loop through blocks to check if chaff is caught
+            let block: TestBlock;
+            for (block of chaff_result.result.Ok) {
+                if (block.error && !all_invalid_blocks.has(get_loc_name(block.loc))) {
+                    // Block errors
+                    return {
+                            name: get_code_file_name(chaff_result),
+                            score: 1,
+                            max_score: 1,
+                            output: `Chaff caught; error in block ${block.name}!`,
+                            visibility: "after_published"
+                        }
+                }
+
+                let test: Test;
+                for (test of block.tests) {
+                    // Test fails
+                    if (!test.passed && !all_invalid_tests.has(get_loc_name(test.loc))) {
+                        return {
+                                name: get_code_file_name(chaff_result),
+                                score: 1,
+                                max_score: 1,
+                                output: `Chaff caught; test failed in block ${block.name}!`,
+                                visibility: "after_published"
+                            }
+                    }
+                }
+            }
+
+            // If this is reached, the chaff is not caught
+            return {
+                    name: get_code_file_name(chaff_result),
+                    score: 0,
+                    max_score: 1,
+                    output: `Chaff not caught.`,
+                    visibility: "after_published"
+                }
+        }
+    }
+}
+
 // Generate overall report
 
 /*
@@ -493,7 +670,9 @@ function main() {
 
     // Generate TA reports
     let ta_reports: GradescopeTestReport[] = [].concat(
-        ...test_results.map(generate_functionality_report));
+        ...test_results.map(generate_functionality_report),
+        wheat_results.map(generate_wheat_report_ta),
+        chaff_results.map(generate_chaff_report_ta(wheat_results)));
 
     // All reports
     let all_reports: GradescopeTestReport[] = [].concat(

@@ -49,6 +49,8 @@ interface GradescopeReport {
     visibility: string;
     stdout_visibility: string;
     tests: GradescopeTestReport[];
+    score?: number;
+    max_score?: number;
 }
 
 interface GradescopeTestReport {
@@ -490,6 +492,8 @@ function generate_overall_report(
             visibility: "after_published",
             stdout_visibility: "after_published",
             tests: all_reports,
+            score: 0,
+            max_score: 0,
         };
 }
 

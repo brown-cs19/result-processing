@@ -199,7 +199,10 @@ function get_test_file_name(evaluation: Evaluation): string {
     Outputs: The pure location name
 */
 function get_loc_name(loc: string): string {
-    return loc.split("/")[-1];
+    let parts = loc.split("/");
+    let ret = parts[parts.length - 1];
+
+    return ret;
 }
 
 

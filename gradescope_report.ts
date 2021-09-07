@@ -461,7 +461,7 @@ function generate_examplar_chaff_report(chaff_result: Evaluation, chaff_number: 
 
         let test: TestAndBlock;
         for (test of invalids.tests) {
-            messages.push(`Test block: ${test.block.name}; Test lines: ${get_line_number(test.test.loc)}`);
+            messages.push(`Test block: "${test.block.name}"; Test lines: ${get_line_number(test.test.loc)}`);
         }
 
         if (messages.length === 0) {
@@ -582,12 +582,12 @@ function generate_detailed_wheat_report(wheat_result: Evaluation): GradescopeTes
         
         let test: TestAndBlock;
         for (test of invalids.tests) {
-            output += `Wheat failed test in block ${test.block.name} at location ${test.test.loc}\n`;
+            output += `Wheat failed test in block "${test.block.name}" at location ${test.test.loc}\n`;
         }
         
         let block: TestBlock
         for (block of invalids.blocks) {
-            output = `Wheat caused error in block ${block.name}\n`;
+            output = `Wheat caused error in block "${block.name}"\n`;
         }
 
         if (output === "") {
@@ -657,7 +657,7 @@ function generate_detailed_chaff_report(wheat_results: Evaluation[]) {
                     if (block.error && !all_invalid_blocks.includes(block)) {
                         // Block errors
                         return {
-                            output: `Chaff caught; error in block ${block.name}!`,
+                            output: `Chaff caught; error in block "${block.name}"!`,
                             score: 1
                         };
                     }
@@ -667,7 +667,7 @@ function generate_detailed_chaff_report(wheat_results: Evaluation[]) {
                         // Test fails
                         if (!test.passed && !all_invalid_tests.includes(test)) {
                             return {
-                                output: `Chaff caught; test failed in block ${block.name}!`,
+                                output: `Chaff caught; test failed in block "${block.name}"!`,
                                 score: 1
                             };
                         }

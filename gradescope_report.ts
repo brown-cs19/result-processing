@@ -13,10 +13,10 @@ interface Test {
 }
 
 interface TestBlock {
-    name: string,
-    loc: string,
-    error: boolean,
-    tests: Test[],
+    name: string;
+    loc: string;
+    error: boolean;
+    tests: Test[];
 }
 
 enum Err {
@@ -28,8 +28,8 @@ enum Err {
 }
 
 interface Result {
-    Ok?: TestBlock[],
-    Err?: Err
+    Ok?: TestBlock[];
+    Err?: Err;
 }
 
 interface Evaluation {
@@ -58,12 +58,28 @@ interface GradescopeReport {
     max_score: number;
 }
 
+enum ReportSection {
+    Functionality = "Functionality",
+    Wheat = "Wheat",
+    Chaff = "Chaff"
+}
+
+enum ReportType {
+    Examplar = "Examplar",
+    Detailed = "Detailed",
+    Score = "Score",
+}
+
 interface GradescopeTestReport {
     name: string;
-    output?: string;
-    visibility?: string;
+    output: string;
+    visibility: string;
     score?: number;
     max_score?: number;
+    extra_data: {
+        section: ReportSection;
+        type: ReportType;
+    }
 }
 
 
@@ -162,9 +178,9 @@ function read_score_data_from_file(path: PathName): PointData {
     let testing_map: Map<string, number> = json_to_map(raw_score_data.testing);
 
     return {
-            functionality: functionality_map,
-            testing: testing_map
-        };
+        functionality: functionality_map,
+        testing: testing_map
+    };
 }
 
 
@@ -278,7 +294,7 @@ function get_invalid_tests_and_blocks(wheat: Evaluation): [[Test, TestBlock][], 
     Inputs: The `wheat_results` evaluations
     Outputs: A report for the wheat
 */
-function generate_wheat_report(wheat_results: Evaluation[]): GradescopeTestReport {
+function generate_examplar_wheat_report(wheat_results: Evaluation[]): GradescopeTestReport {
     let wheat_messages: string[] = [].concat(...wheat_results.map(generate_wheat_messages));
 
     // Remove duplicates (from https://wsvincent.com/javascript-remove-duplicates-array/)
@@ -286,15 +302,24 @@ function generate_wheat_report(wheat_results: Evaluation[]): GradescopeTestRepor
 
     if (wheat_messages.length === 0) {
         return {
-                "name": `VALID`,
-                "output": "These tests are valid and consistent with the assignment handout."
-            }
+            name: "VALID",
+            output: "These tests are valid and consistent with the assignment handout.",
+            visibility: "visible",
+            extra_data: {
+                section: ReportSection.Wheat,
+                type: ReportType.Examplar,
+            },
+        };
     } else {
         return {
-                "name": `INVALID`,
-                "output": "Your test suite failed at least one of our wheats.\n" + 
-                          wheat_messages.join("\n")
-            };
+            name: "INVALID",
+            output: `Your test suite failed at least one of our wheats.\n${wheat_messages.join("\n")}`,
+            visibility: "visible",
+            extra_data: {
+                section: ReportSection.Wheat,
+                type: ReportType.Examplar,
+            },
+        };
     }
 }
 
@@ -342,24 +367,22 @@ function generate_wheat_messages(wheat_result: Evaluation): string[] {
     Inputs: The `chaff_results` to report
     Outputs: The report for the chaff
 */
-function generate_chaff_report(chaff_result: Evaluation, chaff_number: number): GradescopeTestReport {
+function generate_examplar_chaff_report(chaff_result: Evaluation, chaff_number: number): GradescopeTestReport {
     // Find the invalid tests/blocks
     let invalid: [[Test, TestBlock][], TestBlock[]] | null = 
         get_invalid_tests_and_blocks(chaff_result);
 
+    let name: string;
     let output: string;
     if (invalid === null) {
         // Valid wheat
-        return {
-                name: `Chaff number ${chaff_number} not caught.`
-            };
+        name = `Chaff number ${chaff_number} not caught.`;
+        output = "";
     } else if (chaff_result.result.Err) {
         // Test file errored
-        return {
-                name: `Chaff number ${chaff_number} caught!`,
-                output: `Wheat errored: ${chaff_result.result.Err}.\n` +
-                        "Note that this means you are not testing defensively."
-            };
+        name = `Chaff number ${chaff_number} caught!`;
+        output = `Chaff errored: ${chaff_result.result.Err}.\n` +
+            "Note that this means you are not testing defensively.";
     } else {
         let messages: string[] = [];
 
@@ -379,12 +402,19 @@ function generate_chaff_report(chaff_result: Evaluation, chaff_number: number): 
             throw "Contact instructor; Chaff failed, but no reason given.";
         }
 
-        return {
-                name: `Chaff number ${chaff_number} caught!`,
-                output: "The following tests caught this chaff:\n" +
-                        messages.join("\n")
-            };
+        name = `Chaff number ${chaff_number} caught!`;
+        output = `The following tests caught this chaff:\n${messages.join("\n")}`;
     }
+
+    return {
+        name: name,
+        output: output,
+        visibility: "visible",
+        extra_data: {
+            section: ReportSection.Chaff,
+            type: ReportType.Examplar,
+        }
+    };
 }
 
 // Generate TA reports
@@ -403,47 +433,55 @@ function generate_functionality_report(test_result: Evaluation): GradescopeTestR
     // If errors, 0 functionality and provide error reason
     if (result.Err) {
         return [{
-                name: get_code_file_name(test_result),
-                score: 0,
-                max_score: 1,
-                output: `Error: ${result.Err}`,
-                visibility: "visible"
-            }];
+            name: get_code_file_name(test_result),
+            output: `Error: ${result.Err}`,
+            score: 0,
+            max_score: 1,
+            visibility: "visible",
+            extra_data: {
+                section: ReportSection.Functionality,
+                type: ReportType.Detailed,
+            }
+        }];
     }
-
 
     // If no error, report what blocks passed/failed
     let reports: GradescopeTestReport[] = [];
 
     let block: TestBlock;
     for (block of result.Ok) {
-        let report: GradescopeTestReport;
+        let output: string;
+        let score: number;
         if (block.error) {
             // If the block errors, then failed block
-            report = {
-                    name: block.name,
-                    score: 0,
-                    max_score: 1,
-                    output: "Block errored.",
-                    visibility: "after_published"
-                };
+            output = "Block errored.";
+            score = 0;
         } else {
             // Otherwise, compare number of passed tests to total number of tests
             let total_tests: number = block.tests.length;
             let passed_tests: number = block.tests.filter(test => test.passed).length;
-            report = {
-                    name: block.name,
-                    score: passed_tests === total_tests ? 1 : 0,
-                    max_score: 1,
-                    output: passed_tests === total_tests 
-                        ? `Passed all ${total_tests} tests in this block!`
-                        : `Missing ${total_tests - passed_tests} tests in this block`,
-                    visibility: "after_published"
-                };
+
+            if (passed_tests === total_tests) {
+                output = `Passed all ${total_tests} tests in this block!`;
+                score = 1;
+            } else {
+                output = `Missing ${total_tests - passed_tests} tests in this block`;
+                score = 0;
+            }
         }
 
         // Add block to report
-        reports.push(report);
+        reports.push({
+            name: block.name,
+            output: output,
+            score: score,
+            max_score: 1,
+            visibility: "after_published",
+            extra_data: {
+                section: ReportSection.Functionality,
+                type: ReportType.Detailed,
+            }
+        });
     }
 
     return reports;
@@ -499,7 +537,7 @@ function get_invalid_tests_and_blocks_ta(wheat: Evaluation): [[string, string][]
     Inputs: The `wheat_result` evaluation
     Outputs: A report for the wheat
 */
-function generate_wheat_report_ta(wheat_result: Evaluation): GradescopeTestReport {
+function generate_detailed_wheat_report(wheat_result: Evaluation): GradescopeTestReport {
     // Find the invalid tests/blocks
     let invalid: [[string, string][], [string, string][]] | null = 
         get_invalid_tests_and_blocks_ta(wheat_result);
@@ -525,12 +563,16 @@ function generate_wheat_report_ta(wheat_result: Evaluation): GradescopeTestRepor
     }
 
     return {
-            name: get_code_file_name(wheat_result),
-            score: (invalid === null) ? 1 : 0,
-            max_score: 1,
-            output: output,
-            visibility: "after_published"
+        name: get_code_file_name(wheat_result),
+        score: (invalid === null) ? 1 : 0,
+        max_score: 1,
+        output: output,
+        visibility: "after_published",
+        extra_data: {
+            section: ReportSection.Wheat,
+            type: ReportType.Detailed,
         }
+    };
 }
 
 /*
@@ -543,7 +585,7 @@ function generate_wheat_report_ta(wheat_result: Evaluation): GradescopeTestRepor
     Inputs: The `wheat_results` evaluations
     Outputs: A function which generates a chaff report from an evaluation
 */
-function generate_chaff_report_ta(wheat_results: Evaluation[]) {
+function generate_detailed_chaff_report(wheat_results: Evaluation[]) {
     let all_invalid_tests: Set<string> = new Set(),
         all_invalid_blocks: Set<string> = new Set();
 
@@ -575,53 +617,57 @@ function generate_chaff_report_ta(wheat_results: Evaluation[]) {
         Outputs: The report for the chaff
     */
     return function (chaff_result: Evaluation): GradescopeTestReport {
-        if (chaff_result.result.Err) {
-            // Test file errors
-            return {
-                    name: get_code_file_name(chaff_result),
-                    score: 1,
-                    max_score: 1,
+        let get_score_and_output = function (): {output: string, score: number} {
+            if (chaff_result.result.Err) {
+                // Test file errors
+                return {
                     output: `Chaff caught; error: ${chaff_result.result.Err}!`,
-                    visibility: "after_published"
+                    score: 1
                 };
-        } else {
-            // Loop through blocks to check if chaff is caught
-            let block: TestBlock;
-            for (block of chaff_result.result.Ok) {
-                if (block.error && !all_invalid_blocks.has(get_loc_name(block.loc))) {
-                    // Block errors
-                    return {
-                            name: get_code_file_name(chaff_result),
-                            score: 1,
-                            max_score: 1,
-                            output: `Chaff caught; error in block ${block.name}!`,
-                            visibility: "after_published"
-                        }
-                }
-
-                let test: Test;
-                for (test of block.tests) {
-                    // Test fails
-                    if (!test.passed && !all_invalid_tests.has(get_loc_name(test.loc))) {
+            } else {
+                // Loop through blocks to check if chaff is caught
+                let block: TestBlock;
+                for (block of chaff_result.result.Ok) {
+                    if (block.error && !all_invalid_blocks.has(get_loc_name(block.loc))) {
+                        // Block errors
                         return {
-                                name: get_code_file_name(chaff_result),
-                                score: 1,
-                                max_score: 1,
+                            output: `Chaff caught; error in block ${block.name}!`,
+                            score: 1
+                        };
+                    }
+    
+                    let test: Test;
+                    for (test of block.tests) {
+                        // Test fails
+                        if (!test.passed && !all_invalid_tests.has(get_loc_name(test.loc))) {
+                            return {
                                 output: `Chaff caught; test failed in block ${block.name}!`,
-                                visibility: "after_published"
-                            }
+                                score: 1
+                            };
+                        }
                     }
                 }
+    
+                // If this is reached, the chaff is not caught
+                return {
+                    output: "Chaff not caught.",
+                    score: 0
+                };
             }
+        }
 
-            // If this is reached, the chaff is not caught
-            return {
-                    name: get_code_file_name(chaff_result),
-                    score: 0,
-                    max_score: 1,
-                    output: `Chaff not caught.`,
-                    visibility: "after_published"
-                }
+        let result = get_score_and_output();
+
+        return {
+            name: get_code_file_name(chaff_result),
+            output: result.output,
+            score: result.score,
+            max_score: 1,
+            visibility: "after_published",
+            extra_data: {
+                section: ReportSection.Chaff,
+                type: ReportType.Detailed,
+            }
         }
     }
 }
@@ -633,15 +679,14 @@ function generate_chaff_report_ta(wheat_results: Evaluation[]) {
     Inputs: List of `all_reports` to include
     Outputs: The overall Gradescope report
 */
-function generate_overall_report(
-        all_reports: GradescopeTestReport[]): GradescopeReport {
+function generate_overall_report(all_reports: GradescopeTestReport[]): GradescopeReport {
     return {
-            visibility: "visible",
-            stdout_visibility: "visible",
-            tests: all_reports,
-            score: 0,
-            max_score: 0,
-        };
+        visibility: "visible",
+        stdout_visibility: "visible",
+        tests: all_reports,
+        score: 0,
+        max_score: 0,
+    };
 }
 
 
@@ -665,47 +710,93 @@ function main() {
     let examplarConfig: ExamplarConfig = parse_examplar_config_file(configFile);
 
     // Get point value data
-    // let point_values: PointData = read_score_data_from_file(scorefile);
+    let point_values: PointData = read_score_data_from_file(scorefile);
 
 
     /*
     ** Generating reports
     */
 
-    // Generate student reports
+    let examplar_reports: GradescopeTestReport[];
+    {
+        // Wheats
+        let wheat_report: GradescopeTestReport = generate_examplar_wheat_report(wheat_results);
+            
+        // Chaffs
+        let chaff_reports: GradescopeTestReport[];
+        if (wheat_report.name === "VALID") {
+            chaff_reports = chaff_results.map((result, index) => generate_examplar_chaff_report(result, index));
+        } else {
+            chaff_reports = [];
+        }
 
-    // Wheats
-    let wheat_report: GradescopeTestReport = generate_wheat_report(wheat_results);
-        
-    // Chaffs
-    let chaff_reports: GradescopeTestReport[];
-    if (wheat_report.name === "VALID") {
-        chaff_reports = chaff_results.map(generate_chaff_report);
-    } else {
-        chaff_reports = [];
+        examplar_reports = [].concat(
+            [wheat_report],
+            chaff_reports,
+        );
     }
 
-    // Overview
-    let student_reports: GradescopeTestReport[] = [].concat(
-        [wheat_report,],
-        chaff_reports,);
+    let detailed_reports: GradescopeTestReport[];
+    let score_reports: GradescopeTestReport[];
+    {
+        // Detailed reports
 
-    // Generate TA reports
-    let ta_reports: GradescopeTestReport[] = [].concat(
-        ...test_results.map(generate_functionality_report),
-        wheat_results.map(generate_wheat_report_ta),
-        chaff_results.map(generate_chaff_report_ta(wheat_results)));
+        let detailed_test_reports: GradescopeTestReport[][] =
+            test_results.map(generate_functionality_report);
+
+        let detailed_wheat_reports: GradescopeTestReport[] =
+            wheat_results.map(generate_detailed_wheat_report);
+
+        let detailed_chaff_reports: GradescopeTestReport[] =
+            chaff_results.map(generate_detailed_chaff_report(wheat_results));
+        
+        detailed_reports = [].concat(
+            ...detailed_test_reports,
+            detailed_wheat_reports,
+            detailed_chaff_reports,
+        );
+
+        // Score reports
+
+        let functionality_scores: GradescopeTestReport[] = 
+            detailed_test_reports.map(report => 
+                generate_score_report(
+                    report, 
+                    point_values.functionality, 
+                    "Functionality score", 
+                    ReportSection.Functionality));
+
+        let wheat_score: GradescopeTestReport =
+            generate_score_report(
+                detailed_wheat_reports, 
+                point_values.testing, 
+                "Wheats score", 
+                ReportSection.Wheat);
+
+        let chaff_score: GradescopeTestReport =
+            generate_score_report(
+                detailed_chaff_reports, 
+                point_values.testing, 
+                "Chaffs score", 
+                ReportSection.Chaff);
+
+        score_reports = [].concat(
+            functionality_scores,
+            [wheat_score],
+            [chaff_score],
+        );
+    }
 
     // All reports
     let all_reports: GradescopeTestReport[] = [].concat(
-        student_reports,
-        ta_reports);
+        examplar_reports,
+        detailed_reports,
+        score_reports,
+    );
 
 
     // Generate overall report
-
     let gradescope_report: GradescopeReport = generate_overall_report(all_reports);
-
 
     /*
     ** Handling output

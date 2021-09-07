@@ -50,18 +50,16 @@ interface PointData {
 
 // Gradescope types
 
-interface GradescopeReport {
-    visibility: string;
-    stdout_visibility: string;
-    tests: GradescopeTestReport[];
-    score: number;
-    max_score: number;
+enum Visibility {
+    Visible = "visible",
+    AfterPublished = "after_published",
+    Hidden = "hidden",
 }
 
 enum ReportSection {
     Functionality = "Functionality",
     Wheat = "Wheat",
-    Chaff = "Chaff"
+    Chaff = "Chaff",
 }
 
 enum ReportType {
@@ -70,12 +68,20 @@ enum ReportType {
     Score = "Score",
 }
 
+interface GradescopeReport {
+    visibility: string;
+    stdout_visibility: string;
+    tests: GradescopeTestReport[];
+    score: number;
+    max_score: number;
+}
+
 interface GradescopeTestReport {
     name: string;
     output: string;
-    visibility: string;
     score?: number;
     max_score?: number;
+    visibility: string;
     extra_data: {
         section: ReportSection;
         type: ReportType;
@@ -304,7 +310,7 @@ function generate_examplar_wheat_report(wheat_results: Evaluation[]): Gradescope
         return {
             name: "VALID",
             output: "These tests are valid and consistent with the assignment handout.",
-            visibility: "visible",
+            visibility: Visibility.Visible,
             extra_data: {
                 section: ReportSection.Wheat,
                 type: ReportType.Examplar,
@@ -314,7 +320,7 @@ function generate_examplar_wheat_report(wheat_results: Evaluation[]): Gradescope
         return {
             name: "INVALID",
             output: `Your test suite failed at least one of our wheats.\n${wheat_messages.join("\n")}`,
-            visibility: "visible",
+            visibility: Visibility.Visible,
             extra_data: {
                 section: ReportSection.Wheat,
                 type: ReportType.Examplar,
@@ -409,7 +415,7 @@ function generate_examplar_chaff_report(chaff_result: Evaluation, chaff_number: 
     return {
         name: name,
         output: output,
-        visibility: "visible",
+        visibility: Visibility.Visible,
         extra_data: {
             section: ReportSection.Chaff,
             type: ReportType.Examplar,
@@ -437,7 +443,7 @@ function generate_functionality_report(test_result: Evaluation): GradescopeTestR
             output: `Error: ${result.Err}`,
             score: 0,
             max_score: 1,
-            visibility: "visible",
+            visibility: Visibility.Visible,
             extra_data: {
                 section: ReportSection.Functionality,
                 type: ReportType.Detailed,
@@ -476,7 +482,7 @@ function generate_functionality_report(test_result: Evaluation): GradescopeTestR
             output: output,
             score: score,
             max_score: 1,
-            visibility: "after_published",
+            visibility: Visibility.AfterPublished,
             extra_data: {
                 section: ReportSection.Functionality,
                 type: ReportType.Detailed,
@@ -567,7 +573,7 @@ function generate_detailed_wheat_report(wheat_result: Evaluation): GradescopeTes
         score: (invalid === null) ? 1 : 0,
         max_score: 1,
         output: output,
-        visibility: "after_published",
+        visibility: Visibility.AfterPublished,
         extra_data: {
             section: ReportSection.Wheat,
             type: ReportType.Detailed,
@@ -663,13 +669,52 @@ function generate_detailed_chaff_report(wheat_results: Evaluation[]) {
             output: result.output,
             score: result.score,
             max_score: 1,
-            visibility: "after_published",
+            visibility: Visibility.AfterPublished,
             extra_data: {
                 section: ReportSection.Chaff,
                 type: ReportType.Detailed,
             }
         }
     }
+}
+
+/*
+    Generates a score report for a given list of reports
+
+    Inputs: The `reports` to summarize;
+            The `point_values` to apply to the reports;
+            The `name` to use in the report
+*/
+function generate_score_report(
+        reports: GradescopeTestReport[],
+        point_values: Map<string, number>,
+        name: string,
+        section: ReportSection): GradescopeTestReport {
+
+    // Find the score summary from the reports
+    let total_score: number = 0;
+    let possible_score: number = 0;
+
+    let report: GradescopeTestReport;
+    for (report of reports) {
+        let points = point_values.has(report.name) ? point_values.get(report.name) : 1;
+
+        total_score += report.score === report.max_score ? points : 0;
+        possible_score += points;
+    }
+
+    // Return report
+    return {
+        name: name,
+        output: "",
+        score: total_score,
+        max_score: possible_score,
+        visibility: Visibility.Hidden,
+        extra_data: {
+            section: section,
+            type: ReportType.Score,
+        },
+    };
 }
 
 // Generate overall report
@@ -681,8 +726,8 @@ function generate_detailed_chaff_report(wheat_results: Evaluation[]) {
 */
 function generate_overall_report(all_reports: GradescopeTestReport[]): GradescopeReport {
     return {
-        visibility: "visible",
-        stdout_visibility: "visible",
+        visibility: Visibility.Visible,
+        stdout_visibility: Visibility.Visible,
         tests: all_reports,
         score: 0,
         max_score: 0,

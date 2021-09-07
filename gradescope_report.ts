@@ -120,7 +120,22 @@ function parse_command_line(): [string, string, string, string] {
 function read_evaluation_from_file(path: PathName): Evaluation[] {
     let fs = require('fs');
     let contents: string = fs.readFileSync(path);
-    return JSON.parse(contents);
+    let evaluations: Evaluation[] = JSON.parse(contents);
+
+    // Normalize locations to ignore directory source.
+    let evaluation: Evaluation;
+    for (evaluation of evaluations) {
+        if (evaluation.result.Ok) {
+            evaluation.result.Ok.forEach(block => {
+                block.loc = get_loc_name(block.loc);
+                block.tests.forEach(test => {
+                    test.loc = get_loc_name(test.loc);
+                });
+            });
+        }
+    }
+
+    return evaluations;
 }
 
 /*
@@ -129,9 +144,9 @@ function read_evaluation_from_file(path: PathName): Evaluation[] {
     Outputs: The `[test_results, wheat_results, chaff_results]`
 */
 function partition_results(results: Evaluation[]): [Evaluation[], Evaluation[], Evaluation[]] {
-    let test_results: Evaluation[] = [],
-        wheat_results: Evaluation[] = [],
-        chaff_results: Evaluation[] = [];
+    let test_results: Evaluation[] = [];
+    let wheat_results: Evaluation[] = [];
+    let chaff_results: Evaluation[] = [];
 
     let result: Evaluation;
     for (result of results) {
@@ -250,6 +265,25 @@ function get_loc_name(loc: string): string {
 
 // Generate student reports
 
+interface TestAndBlock {
+    test: Test,
+    block: TestBlock
+}
+
+enum WheatValidity {
+    Valid,
+    Invalid,
+    Err
+}
+
+interface WheatValidityReport {
+    validity: WheatValidity
+    invalids?: {
+        tests: TestAndBlock[],
+        blocks: TestBlock[]
+    }
+}
+
 /*
     Takes a wheat evaluation, and finds all of the invalid tests and blocks;
     If the wheat passes, returns null;
@@ -260,12 +294,12 @@ function get_loc_name(loc: string): string {
     Outputs: null if valid wheat, otherwise the invalid tests/blocks as:
              [list of (test location, block name), list of (block location, block name)]
 */
-function get_invalid_tests_and_blocks(wheat: Evaluation): [[Test, TestBlock][], TestBlock[]] | null {
+function get_invalid_tests_and_blocks(wheat: Evaluation): WheatValidityReport {
     if (wheat.result.Err) {
-        return [[],[]];
+        return { validity: WheatValidity.Err };
     }
 
-    let invalid_tests: [Test, TestBlock][] = [];
+    let invalid_tests: TestAndBlock[] = [];
     let invalid_blocks: TestBlock[] = [];
 
     let block: TestBlock;
@@ -279,16 +313,22 @@ function get_invalid_tests_and_blocks(wheat: Evaluation): [[Test, TestBlock][], 
         for (test of block.tests) {
             // If a test fails, add to invalid_tests
             if (!test.passed) {
-                invalid_tests.push([test, block]);
+                invalid_tests.push({ test: test, block: block });
             }
         }
     }
 
     if ((invalid_tests.length === 0) && (invalid_blocks.length === 0)) {
         // This means the wheat is valid
-        return null;
+        return { validity: WheatValidity.Valid };
     } else {
-        return [invalid_tests, invalid_blocks];
+        return {
+            validity: WheatValidity.Invalid,
+            invalids: {
+                tests: invalid_tests,
+                blocks: invalid_blocks
+            }
+        };
     }
 }
 
@@ -301,12 +341,20 @@ function get_invalid_tests_and_blocks(wheat: Evaluation): [[Test, TestBlock][], 
     Outputs: A report for the wheat
 */
 function generate_examplar_wheat_report(wheat_results: Evaluation[]): GradescopeTestReport {
-    let wheat_messages: string[] = [].concat(...wheat_results.map(generate_wheat_messages));
+    let full_wheat_report: WheatReport = {
+        valid: true,
+        messages: []
+    };
+    let wheat_result: Evaluation;
+    for (wheat_result of wheat_results) {
+        let wheat_report: WheatReport = generate_wheat_messages(wheat_result);
+        if (!wheat_report.valid) {
+            full_wheat_report.valid = false;
+            full_wheat_report.messages.push(...wheat_report.messages);
+        }
+    }
 
-    // Remove duplicates (from https://wsvincent.com/javascript-remove-duplicates-array/)
-    wheat_messages = wheat_messages.filter((v, i) => wheat_messages.indexOf(v) === i);
-
-    if (wheat_messages.length === 0) {
+    if (full_wheat_report.valid) {
         return {
             name: "VALID",
             output: "These tests are valid and consistent with the assignment handout.",
@@ -317,9 +365,13 @@ function generate_examplar_wheat_report(wheat_results: Evaluation[]): Gradescope
             },
         };
     } else {
+        // Remove duplicates (from https://wsvincent.com/javascript-remove-duplicates-array/)
+        let messages = full_wheat_report.messages;
+        messages = messages.filter((v, i) => messages.indexOf(v) === i);
+
         return {
             name: "INVALID",
-            output: `Your test suite failed at least one of our wheats.\n${wheat_messages.join("\n")}`,
+            output: `Your test suite failed at least one of our wheats.\n${messages.join("\n")}`,
             visibility: Visibility.Visible,
             extra_data: {
                 section: ReportSection.Wheat,
@@ -329,39 +381,48 @@ function generate_examplar_wheat_report(wheat_results: Evaluation[]): Gradescope
     }
 }
 
-function generate_wheat_messages(wheat_result: Evaluation): string[] {
-    // Find the invalid tests/blocks
-    let invalid: [[Test, TestBlock][], TestBlock[]] | null = 
-        get_invalid_tests_and_blocks(wheat_result);
+interface WheatReport {
+    valid: boolean,
+    messages?: string[]
+}
 
-    let output: string;
-    if (invalid === null) {
+function generate_wheat_messages(wheat_result: Evaluation): WheatReport {
+    // Find the invalid tests/blocks
+    let invalid: WheatValidityReport = get_invalid_tests_and_blocks(wheat_result);
+
+    if (invalid.validity === WheatValidity.Valid) {
         // Valid wheat
-        return [];
-    } else if (wheat_result.result.Err) {
+        return { valid: true };
+    } else if (invalid.validity === WheatValidity.Err) {
         // Test file errored
-        return [`Wheat errored; ${wheat_result.result.Err}`];
-    } else {
+        return {
+            valid: false,
+            messages: [`Wheat errored; ${wheat_result.result.Err}`]
+        };
+    } else if (invalid.validity === WheatValidity.Invalid) {
         let messages: string[] = [];
 
-        let [invalid_tests, invalid_blocks] = invalid;
+        let invalids = invalid.invalids;
 
         let block: TestBlock;
-        for (block of invalid_blocks) {
+        for (block of invalids.blocks) {
             messages.push(`Block "${block.name}" at lines ${get_line_number(block.loc)} raised an error.`);
         }
 
-        let test: Test;
-        for ([test, block] of invalid_tests) {
-            messages.push(`Test failed in block "${block.name}" at lines ${get_line_number(block.loc)}; ` +
-                          `Test location: ${get_line_number(test.loc)}`);
+        let test: TestAndBlock;
+        for (test of invalids.tests) {
+            messages.push(`Test failed in block "${test.block.name}" at lines ${get_line_number(test.block.loc)}; ` +
+                          `Test location: ${get_line_number(test.test.loc)}`);
         }
 
-        if (messages == []) {
+        if (messages.length === 0) {
             throw "Contact instructor; Wheat failed, but no reason given.";
         }
 
-        return messages;
+        return {
+            valid: true,
+            messages: messages
+        };
     }
 }
 
@@ -375,36 +436,35 @@ function generate_wheat_messages(wheat_result: Evaluation): string[] {
 */
 function generate_examplar_chaff_report(chaff_result: Evaluation, chaff_number: number): GradescopeTestReport {
     // Find the invalid tests/blocks
-    let invalid: [[Test, TestBlock][], TestBlock[]] | null = 
-        get_invalid_tests_and_blocks(chaff_result);
+    let validity_report: WheatValidityReport = get_invalid_tests_and_blocks(chaff_result);
 
     let name: string;
     let output: string;
-    if (invalid === null) {
+    if (validity_report.validity === WheatValidity.Valid) {
         // Valid wheat
         name = `Chaff number ${chaff_number} not caught.`;
         output = "";
-    } else if (chaff_result.result.Err) {
+    } else if (validity_report.validity === WheatValidity.Err) {
         // Test file errored
         name = `Chaff number ${chaff_number} caught!`;
         output = `Chaff errored: ${chaff_result.result.Err}.\n` +
             "Note that this means you are not testing defensively.";
-    } else {
+    } else if (validity_report.validity === WheatValidity.Invalid) {
         let messages: string[] = [];
 
-        let [invalid_tests, invalid_blocks] = invalid;
+        let invalids = validity_report.invalids;
 
         let block: TestBlock;
-        for (block of invalid_blocks) {
+        for (block of invalids.blocks) {
             messages.push(`Block "${block.name}" at lines ${get_line_number(block.loc)} raised an error.`);
         }
 
-        let test: Test;
-        for ([test, block] of invalid_tests) {
-            messages.push(`Test block: ${block.name}; Test lines: ${get_line_number(test.loc)}`);
+        let test: TestAndBlock;
+        for (test of invalids.tests) {
+            messages.push(`Test block: ${test.block.name}; Test lines: ${get_line_number(test.test.loc)}`);
         }
 
-        if (messages == []) {
+        if (messages.length === 0) {
             throw "Contact instructor; Chaff failed, but no reason given.";
         }
 
@@ -494,48 +554,6 @@ function generate_functionality_report(test_result: Evaluation): GradescopeTestR
 }
 
 /*
-    Takes a wheat evaluation, and finds all of the invalid tests and blocks;
-    If the wheat passes, returns null;
-    Otherwise, returns the pure locations of all invalid tests/blocks and 
-                       the name of the block it contains/itself
-
-    Inputs: The `wheat` evaluation
-    Outputs: null if valid wheat, otherwise the invalid tests/blocks as:
-             [list of (test location, block name), list of (block location, block name)]
-*/
-function get_invalid_tests_and_blocks_ta(wheat: Evaluation): [[string, string][], [string, string][]] | null {
-    if (wheat.result.Err) {
-        return [[],[]];
-    }
-
-    let invalid_tests: [string, string][] = [];
-    let invalid_blocks: [string, string][] = [];
-
-    let block: TestBlock;
-    for (block of wheat.result.Ok) {
-        // If the block errors, add to invalid_blocks
-        if (block.error) {
-            invalid_blocks.push([get_loc_name(block.loc), block.name]);
-        }
-
-        let test: Test;
-        for (test of block.tests) {
-            // If a test fails, add to invalid_tests
-            if (!test.passed) {
-                invalid_tests.push([get_loc_name(test.loc), block.name]);
-            }
-        }
-    }
-
-    if ((invalid_tests.length === 0) && (invalid_blocks.length === 0)) {
-        // This means the wheat is valid
-        return null;
-    } else {
-        return [invalid_tests, invalid_blocks];
-    }
-}
-
-/*
     Generates a wheat testing report; 
     If the wheat is invalid, generates report with reason;
     Otherwise, generates report with positive message
@@ -545,25 +563,30 @@ function get_invalid_tests_and_blocks_ta(wheat: Evaluation): [[string, string][]
 */
 function generate_detailed_wheat_report(wheat_result: Evaluation): GradescopeTestReport {
     // Find the invalid tests/blocks
-    let invalid: [[string, string][], [string, string][]] | null = 
-        get_invalid_tests_and_blocks_ta(wheat_result);
+    let invalid: WheatValidityReport = get_invalid_tests_and_blocks(wheat_result);
 
     let output: string;
-    if (invalid === null) {
+    if (invalid.validity === WheatValidity.Valid) {
         // Valid wheat
         output = "Passed wheat!";
-    } else if (wheat_result.result.Err) {
+    } else if (invalid.validity === WheatValidity.Err) {
         // Test file errored
         output = `Wheat errored; ${wheat_result.result.Err}`;
-    } else {
-        let [invalid_tests, invalid_blocks] = invalid;
-        if (invalid_tests.length > 0) {
-            // Invalid test
-            output = `Wheat failed test in block ${invalid_tests[0][1]}`;
-        } else if (invalid_blocks.length > 0) {
-            // Block errored
-            output = `Wheat caused error in block ${invalid_blocks[0][1]}`;
-        } else {
+    } else if (invalid.validity === WheatValidity.Invalid) {
+        let invalids = invalid.invalids;
+        output = "";
+        
+        let test: TestAndBlock;
+        for (test of invalids.tests) {
+            output += `Wheat failed test in block ${test.block.name} at location ${test.test.loc}\n`;
+        }
+        
+        let block: TestBlock
+        for (block of invalids.blocks) {
+            output = `Wheat caused error in block ${block.name}\n`;
+        }
+
+        if (output === "") {
             throw "Wheat failed but no reason given.";
         }
     }
@@ -592,25 +615,18 @@ function generate_detailed_wheat_report(wheat_result: Evaluation): GradescopeTes
     Outputs: A function which generates a chaff report from an evaluation
 */
 function generate_detailed_chaff_report(wheat_results: Evaluation[]) {
-    let all_invalid_tests: Set<string> = new Set(),
-        all_invalid_blocks: Set<string> = new Set();
+    let all_invalid_tests: Test[] = [];
+    let all_invalid_blocks: TestBlock[] = [];
 
     // Go through wheats and find invalid tests/blocks
     let wheat_result: Evaluation;
     for (wheat_result of wheat_results) {
-        let invalid: [[string, string][], [string, string][]] | null =
-            get_invalid_tests_and_blocks_ta(wheat_result);
+        let invalid: WheatValidityReport = get_invalid_tests_and_blocks(wheat_result);
 
-        if (invalid !== null) {
-            let invalid_test: [string, string];
-            for (invalid_test of invalid[0]) {
-                all_invalid_tests.add(invalid_test[0]);
-            }
-
-            let invalid_block: [string, string];
-            for (invalid_block of invalid[1]) {
-                all_invalid_blocks.add(invalid_block[0]);
-            }
+        if (invalid.validity !== WheatValidity.Valid) {
+            let invalids = invalid.invalids;
+            all_invalid_tests.push(...invalids.tests.map(test => test.test));
+            all_invalid_blocks.push(...invalids.blocks);
         }
     }
 
@@ -634,7 +650,7 @@ function generate_detailed_chaff_report(wheat_results: Evaluation[]) {
                 // Loop through blocks to check if chaff is caught
                 let block: TestBlock;
                 for (block of chaff_result.result.Ok) {
-                    if (block.error && !all_invalid_blocks.has(get_loc_name(block.loc))) {
+                    if (block.error && !all_invalid_blocks.includes(block)) {
                         // Block errors
                         return {
                             output: `Chaff caught; error in block ${block.name}!`,
@@ -645,7 +661,7 @@ function generate_detailed_chaff_report(wheat_results: Evaluation[]) {
                     let test: Test;
                     for (test of block.tests) {
                         // Test fails
-                        if (!test.passed && !all_invalid_tests.has(get_loc_name(test.loc))) {
+                        if (!test.passed && !all_invalid_tests.includes(test)) {
                             return {
                                 output: `Chaff caught; test failed in block ${block.name}!`,
                                 score: 1

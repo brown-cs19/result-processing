@@ -341,52 +341,50 @@ function get_invalid_tests_and_blocks(wheat: Evaluation): TestFailureReport {
     Outputs: A report for the wheat
 */
 function generate_examplar_wheat_report(wheat_results: Evaluation[]): GradescopeTestReport {
-    let full_wheat_report: WheatReport = {
+    let full_wheat_report: WheatMessagesReport = {
         valid: true,
         messages: []
     };
     let wheat_result: Evaluation;
     for (wheat_result of wheat_results) {
-        let wheat_report: WheatReport = generate_wheat_messages(wheat_result);
+        let wheat_report: WheatMessagesReport = generate_wheat_messages(wheat_result);
         if (!wheat_report.valid) {
             full_wheat_report.valid = false;
             full_wheat_report.messages.push(...wheat_report.messages);
         }
     }
 
+    let name: string;
+    let output: string;
     if (full_wheat_report.valid) {
-        return {
-            name: "VALID",
-            output: "These tests are valid and consistent with the assignment handout.",
-            visibility: Visibility.Visible,
-            extra_data: {
-                section: ReportSection.Wheat,
-                type: ReportType.Examplar,
-            },
-        };
+        name = "VALID";
+        output = "These tests are valid and consistent with the assignment handout.";
     } else {
         // Remove duplicates (from https://wsvincent.com/javascript-remove-duplicates-array/)
         let messages = full_wheat_report.messages;
         messages = messages.filter((v, i) => messages.indexOf(v) === i);
 
-        return {
-            name: "INVALID",
-            output: `Your test suite failed at least one of our wheats.\n${messages.join("\n")}`,
-            visibility: Visibility.Visible,
-            extra_data: {
-                section: ReportSection.Wheat,
-                type: ReportType.Examplar,
-            },
-        };
+        name = "INVALID";
+        output = `Your test suite failed at least one of our wheats.\n${messages.join("\n")}`;
     }
+
+    return {
+        name: name,
+        output: output,
+        visibility: Visibility.Visible,
+        extra_data: {
+            section: ReportSection.Wheat,
+            type: ReportType.Examplar,
+        },
+    };
 }
 
-interface WheatReport {
+interface WheatMessagesReport {
     valid: boolean,
     messages?: string[]
 }
 
-function generate_wheat_messages(wheat_result: Evaluation): WheatReport {
+function generate_wheat_messages(wheat_result: Evaluation): WheatMessagesReport {
     // Find the invalid tests/blocks
     let test_report: TestFailureReport = get_invalid_tests_and_blocks(wheat_result);
 

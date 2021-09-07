@@ -566,15 +566,19 @@ function generate_detailed_wheat_report(wheat_result: Evaluation): GradescopeTes
     let test_report: TestFailureReport = get_invalid_tests_and_blocks(wheat_result);
 
     let output: string;
+    let score: number;
     if (test_report.success === TestFailure.Pass) {
         // Valid wheat
         output = "Passed wheat!";
+        score = 1;
     } else if (test_report.success === TestFailure.Err) {
         // Test file errored
         output = `Wheat errored; ${wheat_result.result.Err}`;
+        score = 0;
     } else if (test_report.success === TestFailure.Fail) {
         let invalids = test_report.failures;
         output = "";
+        score = 0;
         
         let test: TestAndBlock;
         for (test of invalids.tests) {
@@ -593,7 +597,7 @@ function generate_detailed_wheat_report(wheat_result: Evaluation): GradescopeTes
 
     return {
         name: get_code_file_name(wheat_result),
-        score: (test_report === null) ? 1 : 0,
+        score: score,
         max_score: 1,
         output: output,
         visibility: Visibility.AfterPublished,

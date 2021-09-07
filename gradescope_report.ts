@@ -288,7 +288,7 @@ interface TestFailureReport {
 /*
     Takes a wheat evaluation, and finds all of the invalid tests and blocks;
     If the wheat passes, returns null;
-    Otherwise, returns the pure locations of all invalid tests/blocks and 
+    Otherwise, returns the pure locations of all invalid tests/blocks and
                        the name of the block it contains/itself
 
     Inputs: The `wheat` evaluation
@@ -334,7 +334,7 @@ function get_invalid_tests_and_blocks(wheat: Evaluation): TestFailureReport {
 }
 
 /*
-    Generates a wheat testing report; 
+    Generates a wheat testing report;
     If the wheat is invalid, generates report with reason;
     Otherwise, generates report with positive message
 
@@ -485,7 +485,7 @@ function generate_examplar_chaff_report(chaff_result: Evaluation, chaff_number: 
 // Generate TA reports
 
 /*
-    Generates a functionality report(s); 
+    Generates a functionality report(s);
     If test file errors, returns a single report with 0/1 and error;
     Otherwise, return report for each block, each out of 1
 
@@ -537,7 +537,7 @@ function generate_functionality_report(test_result: Evaluation): GradescopeTestR
 
         // Add block to report
         reports.push({
-            name: block.name,
+            name: `Test: "${block.name}"`,
             output: output,
             score: score,
             max_score: 1,
@@ -553,7 +553,7 @@ function generate_functionality_report(test_result: Evaluation): GradescopeTestR
 }
 
 /*
-    Generates a wheat testing report; 
+    Generates a wheat testing report;
     If the wheat is invalid, generates report with reason;
     Otherwise, generates report with positive message
 
@@ -578,12 +578,12 @@ function generate_detailed_wheat_report(wheat_result: Evaluation): GradescopeTes
         let invalids = test_report.failures;
         output = "";
         score = 0;
-        
+
         let test: TestAndBlock;
         for (test of invalids.tests) {
             output += `Wheat failed test in block "${test.block.name}" at location ${test.test.loc}\n`;
         }
-        
+
         let block: TestBlock
         for (block of invalids.blocks) {
             output = `Wheat caused error in block "${block.name}"\n`;
@@ -595,7 +595,7 @@ function generate_detailed_wheat_report(wheat_result: Evaluation): GradescopeTes
     }
 
     return {
-        name: get_code_file_name(wheat_result),
+        name: `Wheat: ${get_code_file_name(wheat_result)}`,
         score: score,
         max_score: 1,
         output: output,
@@ -660,7 +660,7 @@ function generate_detailed_chaff_report(wheat_results: Evaluation[]) {
                             score: 1
                         };
                     }
-    
+
                     let test: Test;
                     for (test of block.tests) {
                         // Test fails
@@ -672,7 +672,7 @@ function generate_detailed_chaff_report(wheat_results: Evaluation[]) {
                         }
                     }
                 }
-    
+
                 // If this is reached, the chaff is not caught
                 return {
                     output: "Chaff not caught.",
@@ -684,7 +684,7 @@ function generate_detailed_chaff_report(wheat_results: Evaluation[]) {
         let result = get_score_and_output();
 
         return {
-            name: get_code_file_name(chaff_result),
+            name: `Chaff: ${get_code_file_name(chaff_result)}`,
             output: result.output,
             score: result.score,
             max_score: 1,
@@ -724,7 +724,7 @@ function generate_score_report(
 
     // Return report
     return {
-        name: name,
+        name: `Score: ${name}`,
         output: "",
         score: total_score,
         max_score: possible_score,
@@ -785,7 +785,7 @@ function main() {
         // Wheats
         let wheat_report: GradescopeTestReport = generate_examplar_wheat_report(wheat_results);
         examplar_reports.push(wheat_report);
-            
+
         // Chaffs
         if (wheat_report.name === "VALID") {
             // Filter out based on config
@@ -817,7 +817,7 @@ function main() {
 
         let detailed_chaff_reports: GradescopeTestReport[] =
             chaff_results.map(generate_detailed_chaff_report(wheat_results));
-        
+
         detailed_reports = [].concat(
             ...detailed_test_reports,
             detailed_wheat_reports,
@@ -826,26 +826,26 @@ function main() {
 
         // Score reports
 
-        let functionality_scores: GradescopeTestReport[] = 
-            detailed_test_reports.map(report => 
+        let functionality_scores: GradescopeTestReport[] =
+            detailed_test_reports.map(report =>
                 generate_score_report(
-                    report, 
-                    point_values.functionality, 
-                    "Functionality score", 
+                    report,
+                    point_values.functionality,
+                    "functionality",
                     ReportSection.Functionality));
 
         let wheat_score: GradescopeTestReport =
             generate_score_report(
-                detailed_wheat_reports, 
-                point_values.testing, 
-                "Wheats score", 
+                detailed_wheat_reports,
+                point_values.testing,
+                "wheats",
                 ReportSection.Wheat);
 
         let chaff_score: GradescopeTestReport =
             generate_score_report(
-                detailed_chaff_reports, 
-                point_values.testing, 
-                "Chaffs score", 
+                detailed_chaff_reports,
+                point_values.testing,
+                "chaffs",
                 ReportSection.Chaff);
 
         score_reports = [].concat(

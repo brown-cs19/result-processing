@@ -152,13 +152,12 @@ function partition_results(results: Evaluation[]): [Evaluation[], Evaluation[], 
 
     let result: Evaluation;
     for (result of results) {
-        if (result.code.includes("wheat")) { 
+        let code_name: string = get_code_file_name(result);
+        if (code_name.includes("wheat")) {
             wheat_results.push(result);
-
-        } else if (result.code.includes("chaff")) { 
+        } else if (code_name.includes("chaff")) {
             chaff_results.push(result);
-
-        } else { 
+        } else {
             test_results.push(result);
         }
     };
@@ -794,7 +793,7 @@ function main() {
             if (examplar_config.chaffs === null) {
                 examplar_chaff_results = chaff_results;
             } else {
-                examplar_chaff_results = chaff_results.filter(result => examplar_config.chaffs.includes(result.code));
+                examplar_chaff_results = chaff_results.filter(result => examplar_config.chaffs.includes(get_code_file_name(result)));
             }
 
             // Generate chaff reports

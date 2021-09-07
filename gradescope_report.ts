@@ -766,33 +766,37 @@ function main() {
         partition_results(results);
 
     // Extract config data
-    let examplarConfig: ExamplarConfig = parse_examplar_config_file(configFile);
+    let examplar_config: ExamplarConfig = parse_examplar_config_file(configFile);
 
     // Get point value data
     let point_values: PointData = read_score_data_from_file(scorefile);
-
 
     /*
     ** Generating reports
     */
 
-    let examplar_reports: GradescopeTestReport[];
-    {
+    let examplar_reports: GradescopeTestReport[] = [];
+    if (examplar_config.useWheats) {
         // Wheats
         let wheat_report: GradescopeTestReport = generate_examplar_wheat_report(wheat_results);
+        examplar_reports.push(wheat_report);
             
         // Chaffs
-        let chaff_reports: GradescopeTestReport[];
         if (wheat_report.name === "VALID") {
-            chaff_reports = chaff_results.map((result, index) => generate_examplar_chaff_report(result, index));
-        } else {
-            chaff_reports = [];
-        }
+            // Filter out based on config
+            let examplar_chaff_results: Evaluation[];
+            if (examplar_config.chaffs === null) {
+                examplar_chaff_results = chaff_results;
+            } else {
+                examplar_chaff_results = chaff_results.filter(result => examplar_config.chaffs.includes(result.code));
+            }
 
-        examplar_reports = [].concat(
-            [wheat_report],
-            chaff_reports,
-        );
+            // Generate chaff reports
+            examplar_chaff_results.forEach((result, index) => {
+                let report = generate_examplar_chaff_report(result, index);
+                examplar_reports.push(report);
+            });
+        }
     }
 
     let detailed_reports: GradescopeTestReport[];

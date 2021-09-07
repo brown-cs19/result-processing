@@ -102,14 +102,16 @@ interface GradescopeTestReport {
     Parse command line arguments
     Outputs: The file locations of `[infile, outfile, scorefile]`
 */
-function parse_command_line(): [string, string, string, string] {
+function parse_command_line(): [string, string, string, string | null] {
     let args: string[] = process.argv.slice(2);
 
-    if (args.length != 4) {
+    if (args.length === 3) {
+        return [args[0], args[1], args[2], null];
+    } else if (args.length === 4) {
+        return [args[0], args[1], args[2], args[3]];
+    } else {
         throw("Usage: <infile> <outfile> <configfile> <scorefile>");
     }
-
-    return [args[0], args[1], args[2], args[3]];
 }
 
 /*
@@ -756,7 +758,7 @@ function main() {
     */
 
     // Get input and output file names from command line
-    let [infile, outfile, configFile, scorefile]: [string, string, string, string] = parse_command_line();
+    let [infile, outfile, scorefile, configfile]: [string, string, string, string | null] = parse_command_line();
 
     // Parse autograder json output
     let results: Evaluation[] = read_evaluation_from_file(infile);
@@ -766,7 +768,7 @@ function main() {
         partition_results(results);
 
     // Extract config data
-    let examplar_config: ExamplarConfig = parse_examplar_config_file(configFile);
+    let examplar_config: ExamplarConfig | null = configfile === null ? null : parse_examplar_config_file(configfile);
 
     // Get point value data
     let point_values: PointData = read_score_data_from_file(scorefile);
@@ -776,7 +778,7 @@ function main() {
     */
 
     let examplar_reports: GradescopeTestReport[] = [];
-    if (examplar_config.useWheats) {
+    if (examplar_config !== null && examplar_config.useWheats) {
         // Wheats
         let wheat_report: GradescopeTestReport = generate_examplar_wheat_report(wheat_results);
         examplar_reports.push(wheat_report);

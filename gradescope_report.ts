@@ -38,6 +38,11 @@ interface Evaluation {
     result: Result;
 }
 
+interface ExamplarConfig {
+    useWheats: boolean;
+    chaffs: string[] | null;
+}
+
 interface PointData {
     functionality: Map<string, number>;
     testing: Map<string, number>;
@@ -90,14 +95,14 @@ interface GradescopeTestReport {
     Parse command line arguments
     Outputs: The file locations of `[infile, outfile, scorefile]`
 */
-function parse_command_line(): [string, string, string] {
+function parse_command_line(): [string, string, string, string] {
     let args: string[] = process.argv.slice(2);
 
     if (args.length != 3) {
-        throw("Usage: <infile> <outfile> <scorefile>");
+        throw("Usage: <infile> <outfile> <configfile> <scorefile>");
     }
 
-    return [args[0], args[1], args[2]];
+    return [args[0], args[1], args[2], args[3]];
 }
 
 /*
@@ -135,6 +140,17 @@ function partition_results(results: Evaluation[]): [Evaluation[], Evaluation[], 
     };
 
     return [test_results, wheat_results, chaff_results];
+}
+
+/*
+    Extracts the examplar config data from the config file
+    Inputs: The `path` to the config file
+    Outputs: The config data
+*/
+function parse_examplar_config_file(path: PathName): ExamplarConfig {
+    let fs = require('fs');
+    let contents: string = fs.readFileSync(path);
+    return JSON.parse(contents);
 }
 
 /*
@@ -560,7 +576,7 @@ function main() {
     */
 
     // Get input and output file names from command line
-    let [infile, outfile, scorefile]: [string, string, string] = parse_command_line();
+    let [infile, outfile, configFile, scorefile]: [string, string, string, string] = parse_command_line();
 
     // Parse autograder json output
     let results: Evaluation[] = read_evaluation_from_file(infile);
@@ -568,6 +584,9 @@ function main() {
     // Split up evaluations into test, wheat, and chaff results
     let [test_results, wheat_results, chaff_results]: [Evaluation[], Evaluation[], Evaluation[]] =
         partition_results(results);
+
+    // Extract config data
+    let examplarConfig: ExamplarConfig = parse_examplar_config_file(configFile);
 
     // Get point value data
     let point_values: PointData = read_score_data_from_file(scorefile);
@@ -581,7 +600,7 @@ function main() {
 
     // Functionality
     let functionality_reports: GradescopeTestReport[][] = 
-        test_results.map(generate_functionality_report)
+        test_results.map(generate_functionality_report);
 
     // Wheats
     let wheat_reports: GradescopeTestReport[] =

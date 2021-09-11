@@ -124,19 +124,6 @@ function read_evaluation_from_file(path: PathName): Evaluation[] {
     let contents: string = fs.readFileSync(path);
     let evaluations: Evaluation[] = JSON.parse(contents);
 
-    // Normalize locations to ignore directory source.
-    let evaluation: Evaluation;
-    for (evaluation of evaluations) {
-        if (evaluation.result.Ok) {
-            evaluation.result.Ok.forEach(block => {
-                block.loc = get_loc_name(block.loc);
-                block.tests.forEach(test => {
-                    test.loc = get_loc_name(test.loc);
-                });
-            });
-        }
-    }
-
     return evaluations;
 }
 
@@ -152,7 +139,7 @@ function partition_results(results: Evaluation[]): [Evaluation[], Evaluation[], 
 
     let result: Evaluation;
     for (result of results) {
-        let code_name: string = get_code_file_name(result);
+        let code_name: string = get_code_dir_name(result);
         if (code_name.includes("wheat")) {
             wheat_results.push(result);
         } else if (code_name.includes("chaff")) {
@@ -163,6 +150,21 @@ function partition_results(results: Evaluation[]): [Evaluation[], Evaluation[], 
     };
 
     return [test_results, wheat_results, chaff_results];
+}
+
+/*
+    Normalize locations to ignore directory source (in place)
+    Inputs: An evaluation to fix
+*/
+function normalize_code_names(evaluation: Evaluation) {
+    if (evaluation.result.Ok) {
+        evaluation.result.Ok.forEach(block => {
+            block.loc = get_loc_name(block.loc);
+            block.tests.forEach(test => {
+                test.loc = get_loc_name(test.loc);
+            });
+        });
+    }
 }
 
 /*
@@ -235,12 +237,17 @@ function write_report_to_file(path: PathName, report: GradescopeReport) {
 */
 function get_code_file_name(evaluation: Evaluation): string {
     let path = require('path');
-    return path.parse(evaluation.code).base;
+    return path.basename(evaluation.code);
+}
+
+function get_code_dir_name(evaluation: Evaluation): string {
+    let path = require('path');
+    return path.basename(path.dirname(evaluation.code));
 }
 
 function get_test_file_name(evaluation: Evaluation): string {
     let path = require('path');
-    return path.parse(evaluation.tests.split(";")[1]).dir;
+    return path.dirname(evaluation.tests.split(";")[1]);
 }
 
 function get_line_number(test_loc: string): string {
@@ -769,6 +776,14 @@ function main() {
     // Split up evaluations into test, wheat, and chaff results
     let [test_results, wheat_results, chaff_results]: [Evaluation[], Evaluation[], Evaluation[]] =
         partition_results(results);
+
+    // Fix code names to be uniform across all evaluations (unaffected by test name)
+    {
+        let results: Evaluation[];
+        for (results of [test_results, wheat_results, chaff_results]) {
+            results.forEach(normalize_code_names);
+        }
+    }
 
     // Extract config data
     let examplar_config: ExamplarConfig | null = configfile === null ? null : parse_examplar_config_file(configfile);

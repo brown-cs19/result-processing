@@ -640,6 +640,8 @@ function generate_detailed_chaff_report(wheat_results: Evaluation[]) {
         }
     }
 
+    let all_invalid_locs = [...all_invalid_tests, ...all_invalid_blocks].map(inv => inv.loc);
+
     /*
         Generates a chaff testing report; ignores invalid tests/blocks;
         If the chaff is invalid, generates report with reason;
@@ -660,7 +662,7 @@ function generate_detailed_chaff_report(wheat_results: Evaluation[]) {
                 // Loop through blocks to check if chaff is caught
                 let block: TestBlock;
                 for (block of chaff_result.result.Ok) {
-                    if (block.error && !all_invalid_blocks.includes(block)) {
+                    if (block.error && !all_invalid_locs.includes(block.loc)) {
                         // Block errors
                         return {
                             output: `Chaff caught; error in block "${block.name}"!`,
@@ -671,7 +673,7 @@ function generate_detailed_chaff_report(wheat_results: Evaluation[]) {
                     let test: Test;
                     for (test of block.tests) {
                         // Test fails
-                        if (!test.passed && !all_invalid_tests.includes(test)) {
+                        if (!test.passed && !all_invalid_locs.includes(test.loc)) {
                             return {
                                 output: `Chaff caught; test failed in block "${block.name}"!`,
                                 score: 1
